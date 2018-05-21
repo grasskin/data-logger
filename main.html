@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<link rel="stylesheet" href="./css/photon.min.css">
+<link rel="stylesheet" href="./css/main.css">
+<head>
+	<title>Rasskin Data Logger</title>
+</head>
+<body>
+	<div class="window">
+		<div class="window-content">
+			<div class="pane-sm sidebar"></div>
+			<div class="pane">
+				<div id="live-plot"></div>
+				<div id="live-numerical" class="flex-container">
+					<div id="number-display" class="text-center padded btn"><h1>52</h1><input type="text" class="form-control" placeholder="Serie 1"><input type="color"></div>
+					<div id="number-display" class="text-center padded btn"><h1>42</h1><input type="text" class="form-control" placeholder="Serie 1"><input type="color"></div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script type="text/javascript">
+	const plotly = require("plotly-latest.min.js");
+	const {ipcRenderer} = require("electron");
+	var trace1 = {
+	  x: [],
+	  y: [],
+	  type: 'scatter'
+	};
+
+	var trace2 = {
+		x: [],
+	  y: [],
+	  type: 'scatter'
+	};
+
+	var trace3 = {
+		x: [],
+	  y: [],
+	  type: 'scatter'
+	};
+
+	var trace4 = {
+		x: [],
+	  y: [],
+	  type: 'scatter'
+	};
+
+	var live_data = [trace1, trace2, trace3, trace4];
+
+	plotly.newPlot('live-plot', live_data);
+
+	window.onresize = function() {
+		console.log("REsfa");
+		plotly.Plots.resize("live-plot");
+	}
+
+	var new_x, new_y;
+
+	ipcRenderer.on("arduino:data", function(e, new_data){
+		console.log(new_data);
+		new_x = [];
+		for(let i = 1; i<new_data.length; i++){
+			new_x.push([new_data[0]]);
+		}
+		new_y = [];
+		for(let i = 1; i<new_data.length; i++){
+			new_y.push([new_data[i]]);
+		}
+		plotly.extendTraces("live-plot", {x: new_x, y: new_y}, [0,1,2,3]);
+	});
+</script>
+</body>
+</html>
