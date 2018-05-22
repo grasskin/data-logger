@@ -63,8 +63,8 @@ app.on("ready", function() {
 
 function createSerialWindow() {
 	serialWindow = new BrowserWindow({
-		width: 300,
-		height: 200,
+		width: 420,
+		height: 330,
 		"show": false
 	});
 

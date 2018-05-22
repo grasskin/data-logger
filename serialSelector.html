@@ -1,33 +1,44 @@
 <!DOCTYPE html>
 <html lang="es">
+<link rel="stylesheet" href="./css/photon.min.css">
 <head>
 	<title>Elige serial</title>
 </head>
 <body>
 	<div class="window">
 		<div class="window-content">
-			<h4>Serial   |   Baud rate</h4>
-			<form id="serials">
-				<select class="form-control" id="dropdowner">
-				</select>
-				<select class="form-control" id="dropdowner2">
-					<option value=300>300</option>
-					<option value=600>600</option>
-					<option value=1200>1200</option>
-					<option value=2400>2400</option>
-					<option value=4800>4800</option>
-					<option value=9600>9600</option>
-					<option value=14400>14400</option>
-					<option value=19200>19200</option>
-					<option value=28800>28800</option>
-					<option value=38400>38400</option>
-					<option value=57600>57600</option>
-					<option value=115200>115200</option>	
-				</select>
-				<button type="submit" class="btn btn-form btn-primary">Encender serial</button>
-			</form>
-			<div >
-			<div id="error">
+			<div class="padded-more">
+				<form id="serials">
+					<div class="form-group">
+						<label>Serial</label>
+						<select class="form-control" id="dropdowner"></select>
+					</div>
+					<div class="form-group">
+						<label>Baud rate</label>
+						<select class="form-control" id="dropdowner2">
+							<option value=300>300</option>
+							<option value=600>600</option>
+							<option value=1200>1200</option>
+							<option value=2400>2400</option>
+							<option value=4800>4800</option>
+							<option value=9600>9600</option>
+							<option value=14400>14400</option>
+							<option value=19200>19200</option>
+							<option value=28800>28800</option>
+							<option value=38400>38400</option>
+							<option value=57600>57600</option>
+							<option value=115200>115200</option>	
+						</select>
+					</div>
+					
+					<div class="form-group">
+						<label>Número de series de datos (incluyendo tiempo)</label>
+						<input type="number" class="form-control">
+					</div>
+					<button type="submit" class="btn btn-form btn-primary">Encender serial</button>
+				</form>
+				<div id="error">
+				</div>
 			</div>
 		</div>
 	</div>
