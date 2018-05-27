@@ -12,6 +12,7 @@ let serialWindow;
 var arduinoSerialPort; // To catch undefined
 let parser; // Parses arduino data
 let output;
+let dataStreamNumber; // number of data streams
 
 //TODO edit plotly text language
 
@@ -96,6 +97,7 @@ ipcMain.on("config:serial-port", function(e, serialsetup) {
     	parser.unpipe(output);
     	parser = null;
     	output = null;
+    	dataStreamNumber = null;
      	arduinoSerialPort.close(() => {
      		createArduinoSerial(serialsetup);
      	});
@@ -114,6 +116,7 @@ ipcMain.on("config:serial-port", function(e, serialsetup) {
 
 function createArduinoSerial(serialsetup){
 	arduinoSerialPort = new serialport(serialsetup["port"], {baudRate: parseInt(serialsetup["baud-rate"])});
+	mainWindow.webContents.send("arduino:data-stream-number", serialsetup["data-streams"]);
 	try {
 	parser = arduinoSerialPort.pipe(new serialport.parsers.Readline({delimiter: "\r"}));
 	output = parser.pipe(commaSplitter);
@@ -156,7 +159,8 @@ const mainMenuTemplate = [
 				label: "Serial",
 				click(){
 					createSerialWindow();
-				}
+				},
+				accelerator: process.platform == "darwin"? "Command+N": "Ctrl+N"
 			}
 		]
 	},

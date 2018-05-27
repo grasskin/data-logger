@@ -33,7 +33,7 @@
 					
 					<div class="form-group">
 						<label>Número de series de datos (incluyendo tiempo)</label>
-						<input type="number" class="form-control">
+						<input type="number" class="form-control" id="datastreamnumber" value="5">
 					</div>
 					<button type="submit" class="btn btn-form btn-primary">Encender serial</button>
 				</form>
@@ -74,14 +74,22 @@
 	const form = document.querySelector("form")
 	form.addEventListener("submit", submitForm);
 
+	document.addEventListener("keyup", function(e){
+		e.preventDefault();
+		if (e.keyCode === 13){
+			submitForm(e);
+		}
+	});
+
 	function submitForm(e){
 		e.preventDefault();
 		const drop = document.querySelector("#dropdowner");
 		const drop2 = document.querySelector("#dropdowner2");
+		const datastreams = document.querySelector("#datastreamnumber");
 		let selected = drop.options[drop.selectedIndex].value;
 		let selected2 = drop2.options[drop2.selectedIndex].value;
-
-		ipcRenderer.send("config:serial-port", {"port": selected, "baud-rate": selected2});
+		let selecteddatastreams = datastreams.value;
+		ipcRenderer.send("config:serial-port", {"port": selected, "baud-rate": selected2, "data-streams": selecteddatastreams});
 	}
 </script>
 </html>

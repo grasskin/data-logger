@@ -11,13 +11,12 @@
 			<div class="pane-group">
 				<div class="pane-sm sidebar">
 					<ul class="list-group">
-						<li class="list-group-header">
+						<li class="list-group-item">
 							<button class="btn btn-large btn-default form-control">Grabar datos</button>
 						</li>
-						<li class="list-group-item form-control">
-							<input class="pull-left form-control" type="color">
-							<input type="text" class="form-control pull-right" placeholder="Serie 1">
-						</li>
+					</ul>
+					<ul class="list-group" id="trace-config">
+					</ul>
 				</div>
 				<div class="pane">
 					<div id="live-plot"></div>
@@ -31,32 +30,11 @@
 	</div>
 	<script type="text/javascript">
 	const plotly = require("plotly-latest.min.js");
+	const storage = require('electron-json-storage');
 	const {ipcRenderer} = require("electron");
-	var trace1 = {
-	  x: [],
-	  y: [],
-	  type: 'scatter'
-	};
 
-	var trace2 = {
-		x: [],
-	  y: [],
-	  type: 'scatter'
-	};
-
-	var trace3 = {
-		x: [],
-	  y: [],
-	  type: 'scatter'
-	};
-
-	var trace4 = {
-		x: [],
-	  y: [],
-	  type: 'scatter'
-	};
-
-	var live_data = [trace1, trace2, trace3, trace4];
+	var traces = [];
+	var live_data = [];
 
 	plotly.newPlot('live-plot', live_data);
 
@@ -66,6 +44,42 @@
 	}
 
 	var new_x, new_y;
+
+	ipcRenderer.on("arduino:data-stream-number", function(e, number_of_streams){
+		
+		let trace_config = document.querySelector("#trace-config");
+
+		while(trace_config.firstChild){
+			trace_config.removeChild(trace_config.firstChild);
+		}
+
+		let main_selector, color_selector, name_selector;
+		for(let i = 1; i < number_of_streams; i++){
+			main_selector = document.createElement("li");
+			color_selector = document.createElement("input");
+			name_selector = document.createElement("input");
+			main_selector.className = "list-group-item form-control";
+			color_selector.className = "pull-left";
+			color_selector.setAttribute("type", "color");
+			name_selector.className = "pull-right";
+			name_selector.setAttribute("type", "text")
+			name_selector.setAttribute("placeholder", "Serie " + i);
+			if(number_of_streams == 2) color_selector.className += " zero-fix";
+			main_selector.appendChild(color_selector);
+			main_selector.appendChild(name_selector);
+			trace_config.appendChild(main_selector);
+			color_selector.setAttribute("name", "traceColorSelector" + i);
+			name_selector.setAttribute("name", "traceNameSelector" + i);
+			name_selector.addEventListener("change", function(e){
+				console.log(this.value);
+				console.log(this.name);
+			});
+			traces[i-1] = {x: [], y: [], type: "scatter"};
+			live_data[i-1] = traces[i-1];
+		}
+
+		window.dispatchEvent(new Event('resize'));
+	});
 
 	ipcRenderer.on("arduino:data", function(e, new_data){
 		console.log(new_data);
@@ -77,7 +91,7 @@
 		for(let i = 1; i<new_data.length; i++){
 			new_y.push([new_data[i]]);
 		}
-		plotly.extendTraces("live-plot", {x: new_x, y: new_y}, [0,1,2,3], 400);
+		plotly.extendTraces("live-plot", {x: new_x, y: new_y}, [0,1,2,3], 200);
 	});
 </script>
 </body>
