@@ -33,7 +33,7 @@
 					
 					<div class="form-group">
 						<label>Número de series de datos (incluyendo tiempo)</label>
-						<input type="number" class="form-control" id="datastreamnumber" value="5">
+						<input type="number" class="form-control" id="datastreamnumber">
 					</div>
 					<button type="submit" class="btn btn-form btn-primary">Encender serial</button>
 				</form>
@@ -46,7 +46,11 @@
 <script>
 	const sp = require('serialport');
 	const electron = require("electron")
+	//const storage = require('electron-store');
 	const {ipcRenderer} = electron;
+
+	//const store = new storage();
+	//console.log(store.path);
 
 	sp.list((err, ports) => {
 		console.log(ports);
@@ -67,11 +71,14 @@
 	        			el.value = ports[i]["comName"];
 	        			mainDiv.appendChild(el);
 	        		}
+
+	        		//document.querySelector("#dropdowner2").selected = store.get("arduinoBaudSpeed") || 300;
+					//document.querySelector("#datastreamnumber").value = store.get("numberOfStreams");
 	      		}
 			}
 		});
 
-	const form = document.querySelector("form")
+	const form = document.querySelector("form");
 	form.addEventListener("submit", submitForm);
 
 	document.addEventListener("keyup", function(e){
@@ -86,10 +93,14 @@
 		const drop = document.querySelector("#dropdowner");
 		const drop2 = document.querySelector("#dropdowner2");
 		const datastreams = document.querySelector("#datastreamnumber");
+
 		let selected = drop.options[drop.selectedIndex].value;
 		let selected2 = drop2.options[drop2.selectedIndex].value;
+		//store.set("arduinoBaudSpeed", selected2);
 		let selecteddatastreams = datastreams.value;
+		console.log(selected+selected2+selecteddatastreams);
 		ipcRenderer.send("config:serial-port", {"port": selected, "baud-rate": selected2, "data-streams": selecteddatastreams});
+		
 	}
 </script>
 </html>

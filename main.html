@@ -21,8 +21,6 @@
 				<div class="pane">
 					<div id="live-plot"></div>
 					<div id="live-numerical" class="flex-container">
-						<div id="number-display" class="text-center padded btn"><h1>52</h1><input type="text" class="form-control" placeholder="Serie 1"><input type="color"></div>
-						<div id="number-display" class="text-center padded btn"><h1>42</h1><input type="text" class="form-control" placeholder="Serie 1"><input type="color"></div>
 					</div>
 				</div>
 			</div>
@@ -30,13 +28,26 @@
 	</div>
 	<script type="text/javascript">
 	const plotly = require("plotly-latest.min.js");
-	const storage = require('electron-json-storage');
+	const storage = require('electron-store');
 	const {ipcRenderer} = require("electron");
+
+	const store = new storage();
 
 	var traces = [];
 	var live_data = [];
 
 	plotly.newPlot('live-plot', live_data);
+
+	default_colors = [ '#1f77b4',  // muted blue
+    '#ff7f0e',  // safety orange
+    '#2ca02c',  // cooked asparagus green
+    '#d62728',  // brick red
+    '#9467bd',  // muted purple
+    '#8c564b',  // chestnut brown
+    '#e377c2',  // raspberry yogurt pink
+    '#7f7f7f',  // middle gray
+    '#bcbd22',  // curry yellow-green
+    '#17becf'];
 
 	window.onresize = function() {
 		console.log("REsfa");
@@ -46,35 +57,82 @@
 	var new_x, new_y;
 
 	ipcRenderer.on("arduino:data-stream-number", function(e, number_of_streams){
+
+		store.set("numberOfStreams", number_of_streams)
 		
 		let trace_config = document.querySelector("#trace-config");
+		let numeric_display = document.querySelector("#live-numerical");
 
+		// Clean the DOM
 		while(trace_config.firstChild){
 			trace_config.removeChild(trace_config.firstChild);
 		}
 
+		while(numeric_display.firstChild){
+			numeric_display.removeChild(numeric_display.firstChild);
+		}
+
 		let main_selector, color_selector, name_selector;
+		let live_number_container, live_number, live_number_label;
+		let color;
 		for(let i = 1; i < number_of_streams; i++){
 			main_selector = document.createElement("li");
 			color_selector = document.createElement("input");
 			name_selector = document.createElement("input");
+
+			live_number_container = document.createElement("div");
+			live_number = document.createElement("h1");
+			live_number_label = document.createElement("h4");
+
 			main_selector.className = "list-group-item form-control";
 			color_selector.className = "pull-left";
 			color_selector.setAttribute("type", "color");
 			name_selector.className = "pull-right";
 			name_selector.setAttribute("type", "text")
-			name_selector.setAttribute("placeholder", "Serie " + i);
+			name_selector.setAttribute("placeholder", store.get("traceNameSelector" + i +".name") || ("Serie "+ i));
+			store.set("traceNameSelector" + i +".num", i);
+
+			color_selector.setAttribute("name", "traceColorSelector" + i);
+			name_selector.setAttribute("name", "traceNameSelector" + i);
 			if(number_of_streams == 2) color_selector.className += " zero-fix";
+			store.set("traceColorSelector" + i + ".num", i);
+			color_selector.value = store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10];
+			live_number.style.color = store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10];
+
+			live_number_container.className = "text-center padded btn";
+			live_number.id = "liveNumericDisplay" + i;
+			live_number_label.id = "traceNameSelector" + i;
+			live_number.innerHTML = 0;
+			live_number_label.innerHTML = store.get("traceNameSelector" + i+".name") || ("Serie "+ i);
+
 			main_selector.appendChild(color_selector);
 			main_selector.appendChild(name_selector);
 			trace_config.appendChild(main_selector);
-			color_selector.setAttribute("name", "traceColorSelector" + i);
-			name_selector.setAttribute("name", "traceNameSelector" + i);
+
+			live_number_container.appendChild(live_number);
+			live_number_container.appendChild(live_number_label);
+			numeric_display.appendChild(live_number_container);
+
 			name_selector.addEventListener("change", function(e){
-				console.log(this.value);
-				console.log(this.name);
+				// Event listener for change of trace name
+				e.preventDefault()
+				store.set(this.name+".name", this.value);
+				document.querySelector("#" + this.name).innerHTML = this.value; // update number display, TODO: Take advantage of DOM array
+				plotly.restyle("live-plot", {name: this.value}, [store.get(this.name+".num")-1]);
 			});
-			traces[i-1] = {x: [], y: [], type: "scatter"};
+
+			color_selector.addEventListener("change", function(e){
+				// Event listener for change of trace color
+				e.preventDefault();
+				console.log(this.name);
+				store.set(this.name+".color", this.value);
+				document.querySelector("#liveNumericDisplay" + store.get(this.name+".num")).style.color = this.value;
+				plotly.restyle("live-plot", {marker: {color : store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}}, [store.get(this.name+".num")-1]);
+			});
+
+			console.log(typeof store.get("traceColorSelector"+i+".color"));
+			console.log(store.get("traceColorSelector"+i+".color"));
+			traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}}//store.get("traceColorSelector"+i+".color")}
 			live_data[i-1] = traces[i-1];
 		}
 
@@ -83,6 +141,7 @@
 
 	ipcRenderer.on("arduino:data", function(e, new_data){
 		console.log(new_data);
+		let stream_numbers = store.get("numberOfStreams");
 		new_x = [];
 		for(let i = 1; i<new_data.length; i++){
 			new_x.push([new_data[0]]);
@@ -91,7 +150,14 @@
 		for(let i = 1; i<new_data.length; i++){
 			new_y.push([new_data[i]]);
 		}
-		plotly.extendTraces("live-plot", {x: new_x, y: new_y}, [0,1,2,3], 200);
+		plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+
+		let number_to_update;
+		for(let i = 1; i < stream_numbers; i++){
+			// TODO: Make performant, create array that gets trigered on serial connect with all numeric display events, than call that array instead of constant DOM search
+			number_to_update = document.querySelector("#liveNumericDisplay"+i);
+			number_to_update.innerHTML = new_y[i-1]; 
+		}
 	});
 </script>
 </body>
