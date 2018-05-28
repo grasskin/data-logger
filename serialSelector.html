@@ -46,10 +46,10 @@
 <script>
 	const sp = require('serialport');
 	const electron = require("electron")
-	//const storage = require('electron-store');
+	const storage = require('electron-store');
 	const {ipcRenderer} = electron;
 
-	//const store = new storage();
+	const store = new storage();
 	//console.log(store.path);
 
 	sp.list((err, ports) => {
@@ -72,8 +72,8 @@
 	        			mainDiv.appendChild(el);
 	        		}
 
-	        		//document.querySelector("#dropdowner2").selected = store.get("arduinoBaudSpeed") || 300;
-					//document.querySelector("#datastreamnumber").value = store.get("numberOfStreams");
+	        		document.querySelector("#dropdowner2 option[value='"+ (store.get("arduinoBaudSpeed") || 300 )+"']").selected =  true;
+					document.querySelector("#datastreamnumber").value = parseInt(store.get("numberOfStreams")) || 5;
 	      		}
 			}
 		});
@@ -96,7 +96,7 @@
 
 		let selected = drop.options[drop.selectedIndex].value;
 		let selected2 = drop2.options[drop2.selectedIndex].value;
-		//store.set("arduinoBaudSpeed", selected2);
+		store.set("arduinoBaudSpeed", selected2);
 		let selecteddatastreams = datastreams.value;
 		console.log(selected+selected2+selecteddatastreams);
 		ipcRenderer.send("config:serial-port", {"port": selected, "baud-rate": selected2, "data-streams": selecteddatastreams});

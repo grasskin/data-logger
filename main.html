@@ -12,7 +12,10 @@
 				<div class="pane-sm sidebar">
 					<ul class="list-group">
 						<li class="list-group-item">
-							<button class="btn btn-large btn-default form-control">Grabar datos</button>
+							<button class="btn btn-large btn-primary form-control" id="save-data">Grabar datos</button>
+						</li>
+						<li class="list-group-item">
+							<button class="btn btn-large btn-negative form-control" id="delete-data">Borrar datos</button>
 						</li>
 					</ul>
 					<ul class="list-group" id="trace-config">
@@ -136,10 +139,38 @@
 			live_data[i-1] = traces[i-1];
 		}
 
+		document.querySelector("#delete-data").addEventListener("click", function(e){
+			for(let i = 0; i < store.get("numberOfStreams"); i++){
+				traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}}
+				live_data[i-1] = traces[i-1];
+			}
+			plotly.update("live-plot", live_data);
+		})
+
+		document.querySelector("#save-data").addEventListener("click", StartGrabar);
+
 		window.dispatchEvent(new Event('resize'));
 	});
 
-	ipcRenderer.on("arduino:data", function(e, new_data){
+	function StartGrabar(e){
+		console.log(this);
+		this.removeEventListener("click", StartGrabar);
+		this.addEventListener("click", StopGrabar);
+		console.log(this.firstChild.innerHTML);
+		this.innerHTML = "Dejar de grabar datos";
+		this.className = "btn btn-large btn-warning form-control";
+	}
+
+	function StopGrabar(e){
+		this.removeEventListener("click", StopGrabar);
+		this.addEventListener("click", StartGrabar);
+		this.innerHTML = "Grabar datos";
+		this.className = "btn btn-large btn-default form-control";
+	}
+
+	ipcRenderer.on("arduino:data", newDataNoCam);
+
+	function newDataNoCam(e, new_data){
 		console.log(new_data);
 		let stream_numbers = store.get("numberOfStreams");
 		new_x = [];
@@ -158,7 +189,7 @@
 			number_to_update = document.querySelector("#liveNumericDisplay"+i);
 			number_to_update.innerHTML = new_y[i-1]; 
 		}
-	});
+	}
 </script>
 </body>
 </html>

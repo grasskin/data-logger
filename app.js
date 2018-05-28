@@ -3,9 +3,11 @@ const url = require("url");
 const path = require("path");
 const windowStateKeeper = require('electron-window-state');
 const serialport = require("serialport");
+const storage = require('electron-store');
 
 const {app, BrowserWindow, Menu, ipcMain, dialog} = electron; // electron import
 const { Transform } = require('stream');
+const store = new storage();
 
 let mainWindow;
 let serialWindow;
@@ -15,6 +17,7 @@ let output;
 let dataStreamNumber; // number of data streams
 
 //TODO edit plotly text language
+//TODO Garbage collecting
 
 //Convert arduino data to comasplit
 const commaSplitter = new Transform({
@@ -161,6 +164,12 @@ const mainMenuTemplate = [
 					createSerialWindow();
 				},
 				accelerator: process.platform == "darwin"? "Command+N": "Ctrl+N"
+			},
+			{
+				label: "Restaurar configuración predeterminada",
+				click(){
+					store.clear();
+				}
 			}
 		]
 	},
