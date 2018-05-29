@@ -36,12 +36,15 @@
 	const {dialog} = require('electron').remote;
 	const csvWriter = require("csv-write-stream");
 	const fs = require('fs');
+	const temp = require('temp');
 
 	const store = new storage();
 
 	let writer;
 
 	let traces = [];
+
+	let temp_file_dir; ///////////////////////////// <----------------------------
 
 	var numeric_displays = []; 
 
@@ -234,9 +237,13 @@
 		}
 		writer = csvWriter({headers: CSVHeaders});
 		// Add writer and headers
-		var temp = fs.createWriteStream("temp/temp");
+		temp_file_dir = temp.path();
+		console.log(temp_file_dir)
 
-		writer.pipe(temp);
+		fs.closeSync(fs.openSync(temp_file_dir, 'w'));
+		var temp_file = fs.createWriteStream(temp_file_dir);
+
+		writer.pipe(temp_file);
 
 		// Change ipc functions
 		ipcRenderer.removeListener("arduino:data", newDataNoCam);
@@ -254,10 +261,10 @@
 		this.removeEventListener("click", StopGrabar);
 		let currentdate = new Date();
 		let defaultname =currentdate.getDate()+"-"+(currentdate.getMonth()+1)+"-"+currentdate.getFullYear()+"@"+currentdate.getHours()+"-"+currentdate.getMinutes()+"-"+currentdate.getSeconds();
-		let savepath = dialog.showSaveDialog({defaultPath: defaultname, filters: [{name: "Toma de datos", extensions:["csv"]}]});
+		let savepath = dialog.showSaveDialog({defaultPath: defaultname, filters: [{name: "CSV", extensions:["csv"]}]});
 		if(savepath !== undefined){
-			fs.rename("temp/temp", savepath, (err) => {
-				if(err) dialog.showErrorBox("Error guardando el archivo", err);
+			fs.rename(temp_file_dir, savepath, (err) => {
+				if(err) dialog.showErrorBox("Error guardando el archivo", err.message + "\n Puedes encontrar tus datos en: " + temp_file_dir +".");
 			});
 		}
 
