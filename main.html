@@ -33,8 +33,13 @@
 	const plotly = require("plotly-latest.min.js");
 	const storage = require('electron-store');
 	const {ipcRenderer} = require("electron");
+	const {dialog} = require('electron').remote;
+	const csvWriter = require("csv-write-stream");
+	const fs = require('fs');
 
 	const store = new storage();
+
+	let writer;
 
 	var traces = [];
 	var live_data = [];
@@ -133,8 +138,8 @@
 				plotly.restyle("live-plot", {marker: {color : store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}}, [store.get(this.name+".num")-1]);
 			});
 
-			console.log(typeof store.get("traceColorSelector"+i+".color"));
-			console.log(store.get("traceColorSelector"+i+".color"));
+			//console.log(typeof store.get("traceColorSelector"+i+".color"));
+			//console.log(store.get("traceColorSelector"+i+".color"));
 			traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}}//store.get("traceColorSelector"+i+".color")}
 			live_data[i-1] = traces[i-1];
 		}
@@ -153,16 +158,44 @@
 	});
 
 	function StartGrabar(e){
-		console.log(this);
 		this.removeEventListener("click", StartGrabar);
 		this.addEventListener("click", StopGrabar);
 		console.log(this.firstChild.innerHTML);
 		this.innerHTML = "Dejar de grabar datos";
 		this.className = "btn btn-large btn-warning form-control";
+
+		let CSVHeaders = ["Tiempo (ms)"];
+		for(let i = 1; i < store.get("numberOfStreams"); i++){
+			CSVHeaders.push(store.get("traceNameSelector"+i+".name")||("Serie "+i));
+		}
+		writer = csvWriter({headers: CSVHeaders});
+		// Add writer and headers
+		var temp = fs.createWriteStream("temp/temp");
+		console.log(temp.path);
+		writer.pipe(temp);
+
+		// Change ipc functions
+		ipcRenderer.removeListener("arduino:data", newDataNoCam);
+		ipcRenderer.on("arduino:data", newDataYesCam);
 	}
 
 	function StopGrabar(e){
+		// Change ipc functions
+		ipcRenderer.removeListener("arduino:data", newDataYesCam);
+		ipcRenderer.on("arduino:data", newDataNoCam);
+
+		writer.end();
+		writer = null;
 		this.removeEventListener("click", StopGrabar);
+		let currentdate = new Date();
+		let defaultname =currentdate.getDate()+"-"+(currentdate.getMonth()+1)+"-"+currentdate.getFullYear()+"@"+currentdate.getHours()+"-"+currentdate.getMinutes()+"-"+currentdate.getSeconds();
+		let savepath = dialog.showSaveDialog({defaultPath: defaultname, filters: [{name: "Toma de datos", extensions:["csv"]}]});
+		if(savepath !== undefined){
+			fs.rename("temp/temp", savepath, (err) => {
+				if(err) dialog.showErrorBox("Error guardando el archivo", err);
+			});
+		}
+		console.log(savepath);
 		this.addEventListener("click", StartGrabar);
 		this.innerHTML = "Grabar datos";
 		this.className = "btn btn-large btn-default form-control";
@@ -171,23 +204,53 @@
 	ipcRenderer.on("arduino:data", newDataNoCam);
 
 	function newDataNoCam(e, new_data){
-		console.log(new_data);
+		//console.log(new_data);
 		let stream_numbers = store.get("numberOfStreams");
-		new_x = [];
-		for(let i = 1; i<new_data.length; i++){
-			new_x.push([new_data[0]]);
-		}
-		new_y = [];
-		for(let i = 1; i<new_data.length; i++){
-			new_y.push([new_data[i]]);
-		}
-		plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+		if(new_data.length == stream_numbers){
+			new_x = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_x.push([new_data[0]]);
+			}
+			new_y = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_y.push([new_data[i]]);
+			}
 
-		let number_to_update;
-		for(let i = 1; i < stream_numbers; i++){
-			// TODO: Make performant, create array that gets trigered on serial connect with all numeric display events, than call that array instead of constant DOM search
-			number_to_update = document.querySelector("#liveNumericDisplay"+i);
-			number_to_update.innerHTML = new_y[i-1]; 
+			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+
+			let number_to_update;
+			for(let i = 1; i < stream_numbers; i++){
+				// TODO: Make performant, create array that gets trigered on serial connect with all numeric display events, than call that array instead of constant DOM search
+				number_to_update = document.querySelector("#liveNumericDisplay"+i);
+				number_to_update.innerHTML = new_y[i-1]; 
+			}
+		}
+	}
+
+	function newDataYesCam(e, new_data){
+		let stream_numbers = store.get("numberOfStreams");
+		if(new_data.length == stream_numbers){
+			new_x = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_x.push([new_data[0]]);
+			}
+			new_y = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_y.push([new_data[i]]);
+			}
+
+			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+
+			let number_to_update;
+			for(let i = 1; i < stream_numbers; i++){
+				// TODO: Make performant, create array that gets trigered on serial connect with all numeric display events, than call that array instead of constant DOM search
+				number_to_update = document.querySelector("#liveNumericDisplay"+i);
+				number_to_update.innerHTML = new_y[i-1]; 
+			}
+
+			// new y reuse
+			new_y.unshift(new_data[0]);
+			writer.write(new_y);
 		}
 	}
 </script>

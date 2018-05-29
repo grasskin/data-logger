@@ -1,6 +1,6 @@
 {
   "name": "rasskindatalogger",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Un data logger para Arduino.",
   "main": "app.js",
   "scripts": {
@@ -9,6 +9,7 @@
   "author": "Gabriel Rasskin",
   "license": "ISC",
   "dependencies": {
+    "csv-write-stream": "^2.0.0",
     "electron-store": "^1.3.0",
     "electron-window-state": "^4.1.1",
     "serialport": "^6.2.0"
