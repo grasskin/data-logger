@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<link rel="stylesheet" href="./css/photon.min.css">
+<head>
+	<title>Elige serial</title>
+</head>
+<body>
+	<div class="window">
+		<div class="window-content">
+			<div class="padded-more">
+				<form id="serials">
+					<div class="form-group">
+						<label>Serial</label>
+						<select class="form-control" id="dropdowner"></select>
+					</div>
+					<div class="form-group">
+						<label>Baud rate</label>
+						<select class="form-control" id="dropdowner2">
+							<option value=300>300</option>
+							<option value=600>600</option>
+							<option value=1200>1200</option>
+							<option value=2400>2400</option>
+							<option value=4800>4800</option>
+							<option value=9600>9600</option>
+							<option value=14400>14400</option>
+							<option value=19200>19200</option>
+							<option value=28800>28800</option>
+							<option value=38400>38400</option>
+							<option value=57600>57600</option>
+							<option value=115200>115200</option>	
+						</select>
+					</div>
+					
+					<div class="form-group">
+						<label>Número de series de datos (incluyendo tiempo)</label>
+						<input type="number" class="form-control" id="datastreamnumber">
+					</div>
+					<button type="submit" class="btn btn-form btn-primary">Encender serial</button>
+				</form>
+				<div id="error">
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+<script>
+	const sp = require('serialport');
+	const electron = require("electron")
+	const storage = require('electron-store');
+	const {ipcRenderer} = electron;
+
+	const store = new storage();
+	//console.log(store.path);
+
+	sp.list((err, ports) => {
+		console.log(ports);
+	        if (err){
+	        	document.getElementById("serials").style.display = "none";
+	        	document.getElementById("error").innerHTML = "Ha surgido un error, pruebe reconectar.";
+	        	return;
+	        } else {
+	        	if (ports.length === 0){
+	        		document.getElementById("serials").style.display = "none";
+	        		document.getElementById("error").innerHTML = "No se ha detectado un dispositivo serial.";
+	        	} else {
+	        		let mainDiv = document.getElementById("dropdowner");
+
+	        		for(let i = 0; i < ports.length; i++){
+	        			let el = document.createElement("option");
+	        			el.innerHTML = ports[i]["comName"];
+	        			el.value = ports[i]["comName"];
+	        			mainDiv.appendChild(el);
+	        		}
+
+	        		document.querySelector("#dropdowner2 option[value='"+ (store.get("arduinoBaudSpeed") || 300 )+"']").selected =  true;
+					document.querySelector("#datastreamnumber").value = parseInt(store.get("numberOfStreams")) || 5;
+	      		}
+			}
+		});
+
+	const form = document.querySelector("form");
+	form.addEventListener("submit", submitForm);
+
+	document.addEventListener("keyup", function(e){
+		e.preventDefault();
+		if (e.keyCode === 13){
+			submitForm(e);
+		}
+	});
+
+	function submitForm(e){
+		e.preventDefault();
+		const drop = document.querySelector("#dropdowner");
+		const drop2 = document.querySelector("#dropdowner2");
+		const datastreams = document.querySelector("#datastreamnumber");
+
+		let selected = drop.options[drop.selectedIndex].value;
+		let selected2 = drop2.options[drop2.selectedIndex].value;
+		store.set("arduinoBaudSpeed", selected2);
+		let selecteddatastreams = datastreams.value;
+		console.log(selected+selected2+selecteddatastreams);
+		ipcRenderer.send("config:serial-port", {"port": selected, "baud-rate": selected2, "data-streams": selecteddatastreams});
+		
+	}
+</script>
+</html>
