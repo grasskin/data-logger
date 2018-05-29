@@ -48,7 +48,7 @@ app.on("ready", function() {
 		mainWindow.focus();
 	})
 
-	mainWindowState.manage(mainWindow);
+	mainWindowState.manage(mainWindow); // Store window size
 
 	mainWindow.loadURL(url.format({
 		pathname: path.join(__dirname, "main.html"),
@@ -62,15 +62,18 @@ app.on("ready", function() {
 
 	//Build menu
 	const mainMenu = Menu.buildFromTemplate(mainMenuTemplate);
-	Menu.setApplicationMenu(mainMenu);
+	mainWindow.setMenu(mainMenu);
 })
 
+// Creates serial option menu
 function createSerialWindow() {
 	serialWindow = new BrowserWindow({
 		width: 420,
-		height: 330,
+		height: 310,
 		"show": false
 	});
+
+	serialWindow.setMenu(null);
 
 	serialWindow.once("ready-to-show", () => {
 		serialWindow.show();
@@ -91,7 +94,7 @@ function createSerialWindow() {
 // Diferentes configs
 ipcMain.on("config:serial-port", function(e, serialsetup) {
 	try {
-    console.log(serialsetup);
+    //console.log(serialsetup);
     if(arduinoSerialPort !== undefined){
     	// Handle previous connection + garbage collection
     	arduinoSerialPort.pause();
@@ -104,7 +107,7 @@ ipcMain.on("config:serial-port", function(e, serialsetup) {
      	arduinoSerialPort.close(() => {
      		createArduinoSerial(serialsetup);
      	});
- 		console.log("Reconect");
+ 		//console.log("Reconect");
  	} else {
  		// Connection has never been created
  		createArduinoSerial(serialsetup);
@@ -113,18 +116,19 @@ ipcMain.on("config:serial-port", function(e, serialsetup) {
 	
 	serialWindow.close();
 	} catch (ex){
-		console.log(ex);
+		//console.log(ex);
 	}
 })
 
 function createArduinoSerial(serialsetup){
+	// Create new serial connection
 	arduinoSerialPort = new serialport(serialsetup["port"], {baudRate: parseInt(serialsetup["baud-rate"])});
 	mainWindow.webContents.send("arduino:data-stream-number", serialsetup["data-streams"]);
 	try {
 	parser = arduinoSerialPort.pipe(new serialport.parsers.Readline({delimiter: "\r"}));
 	output = parser.pipe(commaSplitter);
 	} catch (err){
-		console.log(err);
+		//console.log(err);
 	}
 	arduinoSerialPort.on("error", function(err) {
 		dialog.showErrorBox("Error de serial", err.message);
