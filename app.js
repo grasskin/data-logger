@@ -19,7 +19,7 @@ let dataStreamNumber; // number of data streams
 //TODO edit plotly text language
 //TODO Garbage collecting
 
-//process.env.NODE_ENV = "production"
+process.env.NODE_ENV = "production"
 
 //Convert arduino data to comasplit
 const commaSplitter = new Transform({
