@@ -15,6 +15,8 @@ var arduinoSerialPort; // To catch undefined
 let parser; // Parses arduino data
 let output;
 let dataStreamNumber; // number of data streams
+let timeSelectWindow;
+let timeWindow;
 
 //TODO edit plotly text language
 //TODO Garbage collecting
@@ -67,6 +69,59 @@ app.on("ready", function() {
 	mainWindow.setMenu(mainMenu);
 })
 
+// Time select menu
+function createTimeSelectWindow(){
+	timeSelectWindow = new BrowserWindow({
+		width: 300,
+		height: 310,
+		"show": false
+	})
+
+	timeSelectWindow.setMenu(null);
+
+	timeSelectWindow.once("ready-to-show", () => {
+		timeSelectWindow.show();
+		timeSelectWindow.focus();
+	})
+
+	timeSelectWindow.loadURL(url.format({
+		pathname: path.join(__dirname, "timeSelector.html"),
+		protocol: "file:",
+		slashes: true
+	}))
+
+	timeSelectWindow.on("closed", function(){
+		timeSelectWindow = null;
+	})
+}
+
+// Countdown window
+function createTimeWindow(){
+	timeWindow = new BrowserWindow({
+		width: 800,
+		height: 310,
+		"show": false
+	})
+
+	timeWindow.setMenu(null);
+
+	timeWindow.once("ready-to-show", () => {
+		timeWindow.show();
+		timeWindow.focus();
+	})
+
+	timeWindow.loadURL(url.format({
+		pathname: path.join(__dirname, "timeWindow.html"),
+		protocol: "file:",
+		slashes: true
+	}))
+
+	timeWindow.on("closed", function(){
+		timeWindow = null;
+		mainWindow.webContents.send("arduino:countdown-send-data-done");
+	})
+}
+
 // Creates serial option menu
 function createSerialWindow() {
 	serialWindow = new BrowserWindow({
@@ -92,6 +147,18 @@ function createSerialWindow() {
 		serialWindow = null;
 	});
 }
+
+ipcMain.on("config:countdown-save", function(e){
+	timeSelectWindow.close();
+})
+
+ipcMain.on("arduino:countdown-save-data", function(e){
+	createTimeWindow();
+})
+
+ipcMain.on("arduino:countdown-send-data-done", function(e){
+	timeWindow.close(); // Logic handled on close
+})
 
 // Diferentes configs
 ipcMain.on("config:serial-port", function(e, serialsetup) {
@@ -171,6 +238,12 @@ const mainMenuTemplate = [
 					createSerialWindow();
 				},
 				accelerator: process.platform == "darwin"? "Command+N": "Ctrl+N"
+			},
+			{
+				label: "Cuenta atrás",
+				click(){
+					createTimeSelectWindow();
+				}
 			},
 			{
 				label: "Restaurar configuración predeterminada",

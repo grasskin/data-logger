@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<link rel="stylesheet" href="./css/photon.min.css">
+<link rel="stylesheet" href="./css/timewindow.css">
+<head>
+	<title>Cuenta atr&#225s</title>
+</head>
+<body>
+	<div class="window">
+		<div class="window-content">
+			<div class="padded-more">
+				<div class="clock">
+					<canvas id="hours-canvas"></canvas>
+					<label><span id="hours-count"></span> Horas</label>
+				</div>
+
+				<div class="clock">
+					<canvas id="minutes-canvas"></canvas>
+					<label><span id="minutes-count"></span> Minutos</label>
+				</div>
+
+				<div class="clock">
+					<canvas id="seconds-canvas"></canvas>
+					<label><span id="seconds-count"></span> Segundos</label>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+<script>
+	var Clock = require("clock-timer.js");
+	const storage = require('electron-store');
+	const electron = require("electron");
+	const {ipcRenderer} = electron;
+
+	const store = new storage();
+
+
+	// TODO Epoch fail (handle +1 day problems)
+	var currTime = new Date();
+	let addSeconds = parseInt(store.get("countdownSegundos")) || 0;
+	let addMinutes = parseInt(store.get("countdownMinutos")) || 0;
+	let addHours = parseInt(store.get("countdownHoras")) || 0;
+
+	console.log(addSeconds);
+	console.log(addMinutes);
+	console.log(addHours);
+	console.log(currTime.toLocaleDateString("en-US", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+	}) + " " + currTime.toLocaleDateString("es-ES", {
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit"
+	}).split(" ")[1]);
+
+	currTime.setSeconds(addSeconds);
+	currTime.setMinutes(addMinutes);
+	currTime.setHours(addHours);
+
+	let endTime = currTime.toLocaleDateString("en-US", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+	}) + " " + currTime.toLocaleDateString("es-ES", {
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit"
+	}).split(" ")[1];
+
+	// Hacky way of formating for clock-timer.js
+	console.log(endTime);
+
+	clock = new Clock({
+		daysCanvas: false,
+		endDate: endTime,
+		secondsStrokeStyle: "#1079C0",
+		minutesStrokeStyle: "#1079C0",
+		hoursStrokeStyle: "#1079C0",
+	});
+
+	clock.on("end", () => {
+		//console.log("all good");
+		ipcRenderer.send("arduino:countdown-send-data-done");
+	})
+</script>
+</html>

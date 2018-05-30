@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<link rel="stylesheet" href="./css/photon.min.css">
+<head>
+	<title>Cuenta atr&#225s</title>
+</head>
+<body>
+	<div class="window">
+		<div class="window-content">
+			<div class="padded-more">
+				<form>
+					<div class="form-group">
+						<label>Horas</label>
+						<input class="form-control" id="horas" type="number" step="1" min="0"></input>
+					</div>
+					<div class="form-group">
+						<label>Minutos</label>
+						<input class="form-control" id="minutos" type="number" step="1" min="0" max="59"></input>
+					</div>
+					<div class="form-group">
+						<label>Segundos</label>
+						<input class="form-control" id="segundos" type="number" step="1" min="0" max="59"></input>
+					</div>
+					<button type="submit" class="btn btn-form btn-primary">Elegir cuenta atrás</button>
+				</form>
+			</div>
+		</div>
+	</div>
+</body>
+<script>
+	const sp = require('serialport');
+	const electron = require("electron")
+	const storage = require('electron-store');
+	const {ipcRenderer} = electron;
+
+	const store = new storage();
+	let horasDOM = document.querySelector("#horas");
+	let minutosDOM = document.querySelector("#minutos");
+	let segundosDOM = document.querySelector("#segundos");
+
+	horasDOM.value = store.get("countdownHoras") || 0;
+	minutosDOM.value = store.get("countdownMinutos") || 0;
+	segundosDOM.value = store.get("countdownSegundos") || 0;
+
+	const form = document.querySelector("form");
+	form.addEventListener("submit", submitForm);
+
+	document.addEventListener("keyup", function(e){
+		e.preventDefault();
+		if (e.keyCode === 13){
+			submitForm(e);
+		}
+	});
+
+	function submitForm(e){
+		e.preventDefault();
+
+		let horas =document.querySelector("#horas").value || 0;
+		let minutos = document.querySelector("#minutos").value || 0;
+		let segundos = document.querySelector("#segundos").value || 0;
+
+		if(minutos>59){
+			minutos = 59;
+		}
+		if(segundos>59){
+			segundos = 59;
+		}
+		store.set("countdownHoras", horas);
+		store.set("countdownMinutos", minutos);
+		store.set("countdownSegundos", segundos);
+
+		ipcRenderer.send("config:countdown-save");
+	}
+</script>
+</html>

@@ -7,22 +7,23 @@
 </head>
 <body>
 	<div class="window">
+		<header class="toolbar-header">
+			<div class="toolbar-actions">
+				<div class="btn-group">
+					<button class="btn btn-default btn-large" id="save-data">Grabar datos</button>
+					<button class="btn btn-default btn-large" id="timed-save-data"><span class="icon icon-clock"></span></button>	
+				</div>
+				<button class="btn btn-large btn-negative" id="delete-data">Borrar datos</button>
+			</div>
+		</header>
 		<div class="window-content">
 			<div class="pane-group">
 				<div class="pane-sm sidebar">
-					<ul class="list-group">
-						<li class="list-group-item">
-							<button class="btn btn-large btn-primary form-control" id="save-data">Grabar datos</button>
-						</li>
-						<li class="list-group-item">
-							<button class="btn btn-large btn-negative form-control" id="delete-data">Borrar datos</button>
-						</li>
-					</ul>
 					<ul class="list-group" id="trace-config">
 					</ul>
 				</div>
 				<div class="pane">
-					<div id="live-plot"></div>
+					<div id="live-plot"><div class="padded-more">Pulse Ctrl+N.</div></div>
 					<div id="live-numerical" class="flex-container">
 					</div>
 				</div>
@@ -31,6 +32,7 @@
 	</div>
 	<script type="text/javascript">
 	const plotly = require("plotly-latest.min.js");
+	const timer = require("clock-timer.js");
 	const storage = require('electron-store');
 	const {ipcRenderer} = require("electron");
 	const {dialog} = require('electron').remote;
@@ -70,6 +72,11 @@
 
 	function newDataStreamSetup(e, number_of_streams){
 		plotly.purge("live-plot");
+
+		while(document.querySelector("#live-plot").firstChild){
+			document.querySelector("#live-plot").removeChild(document.querySelector("#live-plot").firstChild);
+		}
+
 		plotly.newPlot('live-plot', traces);
 
 		// Cleanup
@@ -165,63 +172,66 @@
 			plotly.update("live-plot", traces);
 		})
 
+		// Various listeners
+
 		document.querySelector("#save-data").addEventListener("click", StartGrabar);
+		document.querySelector("#timed-save-data").addEventListener("click", StartTimedGrabar);
 
 		window.dispatchEvent(new Event('resize'));
 
 		ipcRenderer.on("arduino:data", newDataNoCam);
 	}
 
-		function newDataNoCam(e, new_data){
-			//function for data display no save
-			let stream_numbers = store.get("numberOfStreams");
+	function newDataNoCam(e, new_data){
+		//function for data display no save
+		let stream_numbers = store.get("numberOfStreams");
 
-			if(new_data.length == stream_numbers){
-				new_x = [];
-				for(let i = 1; i<new_data.length; i++){
-					new_x.push([new_data[0]]);
-				}
-				new_y = [];
-				for(let i = 1; i<new_data.length; i++){
-					new_y.push([new_data[i]]);
-				}
+		if(new_data.length == stream_numbers){
+			new_x = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_x.push([new_data[0]]);
+			}
+			new_y = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_y.push([new_data[i]]);
+			}
 
-				plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
 
-				let number_to_update;
-				for(let i = 1; i < stream_numbers; i++){
-					number_to_update = numeric_displays[i-1]
-					number_to_update.innerHTML = new_y[i-1]; 
-				}
+			let number_to_update;
+			for(let i = 1; i < stream_numbers; i++){
+				number_to_update = numeric_displays[i-1]
+				number_to_update.innerHTML = new_y[i-1]; 
 			}
 		}
+	}
 
-		function newDataYesCam(e, new_data){
-			//function for data display yes save
-			let stream_numbers = store.get("numberOfStreams");
-			if(new_data.length == stream_numbers){
-				new_x = [];
-				for(let i = 1; i<new_data.length; i++){
-					new_x.push([new_data[0]]);
-				}
-				new_y = [];
-				for(let i = 1; i<new_data.length; i++){
-					new_y.push([new_data[i]]);
-				}
-
-				plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
-
-				let number_to_update;
-				for(let i = 1; i < stream_numbers; i++){
-					number_to_update = numeric_displays[i-1]
-					number_to_update.innerHTML = new_y[i-1]; 
-				}
-
-				// new y reuse
-				new_y.unshift(new_data[0]);
-				writer.write(new_y);
+	function newDataYesCam(e, new_data){
+		//function for data display yes save
+		let stream_numbers = store.get("numberOfStreams");
+		if(new_data.length == stream_numbers){
+			new_x = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_x.push([new_data[0]]);
 			}
+			new_y = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_y.push([new_data[i]]);
+			}
+
+			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+
+			let number_to_update;
+			for(let i = 1; i < stream_numbers; i++){
+				number_to_update = numeric_displays[i-1]
+				number_to_update.innerHTML = new_y[i-1]; 
+			}
+
+			// new y reuse
+			new_y.unshift(new_data[0]);
+			writer.write(new_y);
 		}
+	}
 
 	function StartGrabar(e){
 		// Function start on save-data button click
@@ -229,7 +239,7 @@
 		this.addEventListener("click", StopGrabar);
 
 		this.innerHTML = "Dejar de grabar datos";
-		this.className = "btn btn-large btn-warning form-control";
+		this.className = "btn btn-warning btn-large";
 
 		let CSVHeaders = ["Tiempo (ms)"];
 		for(let i = 1; i < store.get("numberOfStreams"); i++){
@@ -248,6 +258,67 @@
 		// Change ipc functions
 		ipcRenderer.removeListener("arduino:data", newDataNoCam);
 		ipcRenderer.on("arduino:data", newDataYesCam);
+	}
+
+	ipcRenderer.on("arduino:countdown-send-data-done", StopTimedGrabar);
+
+	function StartTimedGrabar(e){
+		document.querySelector("#save-data").removeEventListener("click", StartGrabar);
+		this.removeEventListener("click", StartTimedGrabar);
+		this.addEventListener("click", EvilUserStopTimedGrabar);
+
+		this.className = "btn btn-warning btn-large";
+
+		ipcRenderer.send("arduino:countdown-save-data");
+
+
+		// Extremely WET, please fix TODO (function is writen 4 times?)
+
+		let CSVHeaders = ["Tiempo (ms)"];
+		for(let i = 1; i < store.get("numberOfStreams"); i++){
+			CSVHeaders.push(store.get("traceNameSelector"+i+".name")||("Serie "+i));
+		}
+		writer = csvWriter({headers: CSVHeaders});
+		// Add writer and headers
+		temp_file_dir = temp.path();
+		console.log(temp_file_dir)
+
+		fs.closeSync(fs.openSync(temp_file_dir, 'w'));
+		var temp_file = fs.createWriteStream(temp_file_dir);
+
+		writer.pipe(temp_file);
+
+		// Change ipc functions
+		ipcRenderer.removeListener("arduino:data", newDataNoCam);
+		ipcRenderer.on("arduino:data", newDataYesCam);
+	}
+
+	function EvilUserStopTimedGrabar(e){
+		ipcRenderer.send("arduino:countdown-send-data-done");
+		this.removeEventListener("click", EvilUserStopTimedGrabar);
+	}
+
+	function StopTimedGrabar(e){
+		console.log("stopped");
+		ipcRenderer.removeListener("arduino:data", newDataYesCam);
+		ipcRenderer.on("arduino:data", newDataNoCam);
+
+		writer.end();
+		writer = null;
+
+		let currentdate = new Date();
+		let defaultname =currentdate.getDate()+"-"+(currentdate.getMonth()+1)+"-"+currentdate.getFullYear()+"@"+currentdate.getHours()+"-"+currentdate.getMinutes()+"-"+currentdate.getSeconds();
+		let savepath = dialog.showSaveDialog({defaultPath: defaultname, filters: [{name: "CSV", extensions:["csv"]}]});
+		if(savepath !== undefined){
+			fs.rename(temp_file_dir, savepath, (err) => {
+				if(err) dialog.showErrorBox("Error guardando el archivo", err.message + "\n Puedes encontrar tus datos en: " + temp_file_dir +".");
+			});
+		}
+
+		document.querySelector("#save-data").addEventListener("click", StartGrabar);
+		document.querySelector("#timed-save-data").addEventListener("click", StartTimedGrabar);
+
+		document.querySelector("#timed-save-data").className = "btn btn-default btn-large";
 	}
 
 	function StopGrabar(e){
@@ -270,7 +341,7 @@
 
 		this.addEventListener("click", StartGrabar);
 		this.innerHTML = "Grabar datos";
-		this.className = "btn btn-large btn-default form-control";
+		this.className = "btn btn-default btn-large";
 	}
 
 </script>

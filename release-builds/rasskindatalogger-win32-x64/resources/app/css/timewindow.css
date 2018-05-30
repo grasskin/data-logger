@@ -1,0 +1,22 @@
+.flex-container {
+	display: flex;
+	justify-content: space-around;
+	flex-wrap: wrap;
+}
+
+.clock {
+  display: inline-block;
+  position: relative;
+  margin: 0 15px;
+  text-align: center;
+}
+
+label {
+  position: absolute;
+  font-size: 16px;
+  top: 50%;
+  left: 50%;
+  width: 100px;
+  margin: -10px 0 0 -50px;
+  text-align: center;
+}
