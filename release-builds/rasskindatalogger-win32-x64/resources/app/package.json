@@ -5,7 +5,8 @@
   "main": "app.js",
   "scripts": {
     "start": "electron app.js",
-    "package-win": "electron-packager . rasskindatalogger --overwrite --icon=assets/icons/win/icon.ico --prune=true --out=release-builds"
+    "package-win": "electron-packager . rasskindatalogger --overwrite --icon=assets/icons/win/icon.ico --prune=true --out=release-builds",
+    "package-win-32": "electron-packager . rasskindatalogger --overwrite --icon=assets/icons/win/icon.ico --prune=true --out=release-builds --platform=win32 --arch=ia32"
   },
   "author": "Gabriel Rasskin",
   "license": "ISC",

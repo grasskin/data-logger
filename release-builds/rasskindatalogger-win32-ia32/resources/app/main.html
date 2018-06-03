@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<link rel="stylesheet" href="./css/photon.min.css">
+<link rel="stylesheet" href="./css/main.css">
+<head>
+	<title>Rasskin Data Logger</title>
+</head>
+<body>
+	<div class="window">
+		<header class="toolbar-header">
+			<div class="toolbar-actions">
+				<div class="btn-group">
+					<button class="btn btn-default btn-large" id="save-data">Grabar datos</button>
+					<button class="btn btn-default btn-large" id="timed-save-data"><span class="icon icon-clock"></span></button>	
+				</div>
+				<button class="btn btn-large btn-negative" id="delete-data">Borrar datos</button>
+			</div>
+		</header>
+		<div class="window-content">
+			<div class="pane-group">
+				<div class="pane-sm sidebar">
+					<ul class="list-group" id="trace-config">
+					</ul>
+				</div>
+				<div class="pane">
+					<div id="live-plot"><div class="padded-more">Pulse Ctrl+N.</div></div>
+					<div id="live-numerical" class="flex-container">
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script type="text/javascript">
+	const plotly = require("plotly-latest.min.js");
+	const timer = require("clock-timer.js");
+	const storage = require('electron-store');
+	const {ipcRenderer} = require("electron");
+	const {dialog} = require('electron').remote;
+	const csvWriter = require("csv-write-stream");
+	const fs = require('fs');
+	const temp = require('temp');
+
+	const store = new storage();
+
+	let writer;
+
+	let traces = [];
+
+	let temp_file_dir; ///////////////////////////// <----------------------------
+
+	var numeric_displays = []; 
+
+	default_colors = [ '#1f77b4',  // muted blue
+    '#ff7f0e',  // safety orange
+    '#2ca02c',  // cooked asparagus green
+    '#d62728',  // brick red
+    '#9467bd',  // muted purple
+    '#8c564b',  // chestnut brown
+    '#e377c2',  // raspberry yogurt pink
+    '#7f7f7f',  // middle gray
+    '#bcbd22',  // curry yellow-green
+    '#17becf'];
+
+	window.onresize = function() {
+		// Fix scrolling bug
+		plotly.Plots.resize("live-plot");
+	}
+
+	var new_x, new_y;
+
+	ipcRenderer.on("arduino:data-stream-number", newDataStreamSetup);
+
+	function newDataStreamSetup(e, number_of_streams){
+		plotly.purge("live-plot");
+
+		while(document.querySelector("#live-plot").firstChild){
+			document.querySelector("#live-plot").removeChild(document.querySelector("#live-plot").firstChild);
+		}
+
+		plotly.newPlot('live-plot', traces);
+
+		// Cleanup
+		ipcRenderer.removeAllListeners("arduino:data");
+
+		store.set("numberOfStreams", number_of_streams)
+
+		let trace_config = document.querySelector("#trace-config");
+		let numeric_display = document.querySelector("#live-numerical");
+
+		// Clean the DOM
+		while(trace_config.firstChild){
+			trace_config.removeChild(trace_config.firstChild);
+		}
+
+		while(numeric_display.firstChild){
+			numeric_display.removeChild(numeric_display.firstChild);
+		}
+
+		let main_selector, color_selector, name_selector;
+		let live_number_container, live_number, live_number_label;
+
+		for(let i = 1; i < number_of_streams; i++){
+			main_selector = document.createElement("li");
+			color_selector = document.createElement("input");
+			name_selector = document.createElement("input");
+
+			live_number_container = document.createElement("div");
+			live_number = document.createElement("h1");
+			live_number_label = document.createElement("h4");
+
+			main_selector.className = "list-group-item form-control";
+			color_selector.className = "pull-left";
+			color_selector.setAttribute("type", "color");
+			name_selector.className = "pull-right";
+			name_selector.setAttribute("type", "text")
+			name_selector.setAttribute("placeholder", store.get("traceNameSelector" + i +".name") || ("Serie "+ i));
+			store.set("traceNameSelector" + i +".num", i);
+
+			color_selector.setAttribute("name", "traceColorSelector" + i);
+			name_selector.setAttribute("name", "traceNameSelector" + i);
+			if(number_of_streams == 2) color_selector.className += " zero-fix";
+			store.set("traceColorSelector" + i + ".num", i);
+			color_selector.value = store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10];
+			live_number.style.color = store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10];
+
+			live_number_container.className = "text-center padded btn";
+			live_number.id = "liveNumericDisplay" + i;
+			live_number_label.id = "traceNameSelector" + i;
+			live_number.innerHTML = 0;
+			live_number_label.innerHTML = store.get("traceNameSelector" + i+".name") || ("Serie "+ i);
+
+			main_selector.appendChild(color_selector);
+			main_selector.appendChild(name_selector);
+			trace_config.appendChild(main_selector);
+
+			live_number_container.appendChild(live_number);
+			live_number_container.appendChild(live_number_label);
+			numeric_display.appendChild(live_number_container);
+
+			numeric_displays[i-1] = live_number;
+
+			name_selector.addEventListener("change", function(e){
+				// Event listener for change of trace name
+				e.preventDefault()
+				store.set(this.name+".name", this.value);
+				document.querySelector("#" + this.name).innerHTML = this.value;
+				plotly.restyle("live-plot", {name: this.value}, [store.get(this.name+".num")-1]);
+			});
+
+			color_selector.addEventListener("change", function(e){
+				// Event listener for change of trace color
+				e.preventDefault();
+
+				store.set(this.name+".color", this.value);
+				document.querySelector("#liveNumericDisplay" + store.get(this.name+".num")).style.color = this.value;
+				plotly.restyle("live-plot", {marker: {color : store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}}, [store.get(this.name+".num")-1]);
+			});
+
+			traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}};
+
+			main_selector = color_selector = name_selector = live_number_container = live_number = live_number_label = null;
+		}
+
+		// Cleanup
+
+		
+
+		document.querySelector("#delete-data").addEventListener("click", function(e){
+			for(let i = 0; i < store.get("numberOfStreams"); i++){
+				traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}};
+			}
+			plotly.update("live-plot", traces);
+		})
+
+		// Various listeners
+
+		document.querySelector("#save-data").addEventListener("click", StartGrabar);
+		document.querySelector("#timed-save-data").addEventListener("click", StartTimedGrabar);
+
+		window.dispatchEvent(new Event('resize'));
+
+		ipcRenderer.on("arduino:data", newDataNoCam);
+	}
+
+	function newDataNoCam(e, new_data){
+		//function for data display no save
+		let stream_numbers = store.get("numberOfStreams");
+
+		if(new_data.length == stream_numbers){
+			new_x = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_x.push([new_data[0]]);
+			}
+			new_y = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_y.push([new_data[i]]);
+			}
+
+			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+
+			let number_to_update;
+			for(let i = 1; i < stream_numbers; i++){
+				number_to_update = numeric_displays[i-1]
+				number_to_update.innerHTML = new_y[i-1]; 
+			}
+		}
+	}
+
+	function newDataYesCam(e, new_data){
+		//function for data display yes save
+		let stream_numbers = store.get("numberOfStreams");
+		if(new_data.length == stream_numbers){
+			new_x = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_x.push([new_data[0]]);
+			}
+			new_y = [];
+			for(let i = 1; i<new_data.length; i++){
+				new_y.push([new_data[i]]);
+			}
+
+			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+
+			let number_to_update;
+			for(let i = 1; i < stream_numbers; i++){
+				number_to_update = numeric_displays[i-1]
+				number_to_update.innerHTML = new_y[i-1]; 
+			}
+
+			// new y reuse
+			new_y.unshift(new_data[0]);
+			writer.write(new_y);
+		}
+	}
+
+	function StartGrabar(e){
+		// Function start on save-data button click
+		this.removeEventListener("click", StartGrabar);
+		this.addEventListener("click", StopGrabar);
+
+		this.innerHTML = "Dejar de grabar datos";
+		this.className = "btn btn-warning btn-large";
+
+		let CSVHeaders = ["Tiempo (ms)"];
+		for(let i = 1; i < store.get("numberOfStreams"); i++){
+			CSVHeaders.push(store.get("traceNameSelector"+i+".name")||("Serie "+i));
+		}
+		writer = csvWriter({headers: CSVHeaders});
+		// Add writer and headers
+		temp_file_dir = temp.path();
+		console.log(temp_file_dir)
+
+		fs.closeSync(fs.openSync(temp_file_dir, 'w'));
+		var temp_file = fs.createWriteStream(temp_file_dir);
+
+		writer.pipe(temp_file);
+
+		// Change ipc functions
+		ipcRenderer.removeListener("arduino:data", newDataNoCam);
+		ipcRenderer.on("arduino:data", newDataYesCam);
+	}
+
+	ipcRenderer.on("arduino:countdown-send-data-done", StopTimedGrabar);
+
+	function StartTimedGrabar(e){
+		document.querySelector("#save-data").removeEventListener("click", StartGrabar);
+		this.removeEventListener("click", StartTimedGrabar);
+		this.addEventListener("click", EvilUserStopTimedGrabar);
+
+		this.className = "btn btn-warning btn-large";
+
+		ipcRenderer.send("arduino:countdown-save-data");
+
+
+		// Extremely WET, please fix TODO (function is writen 4 times?)
+
+		let CSVHeaders = ["Tiempo (ms)"];
+		for(let i = 1; i < store.get("numberOfStreams"); i++){
+			CSVHeaders.push(store.get("traceNameSelector"+i+".name")||("Serie "+i));
+		}
+		writer = csvWriter({headers: CSVHeaders});
+		// Add writer and headers
+		temp_file_dir = temp.path();
+		console.log(temp_file_dir)
+
+		fs.closeSync(fs.openSync(temp_file_dir, 'w'));
+		var temp_file = fs.createWriteStream(temp_file_dir);
+
+		writer.pipe(temp_file);
+
+		// Change ipc functions
+		ipcRenderer.removeListener("arduino:data", newDataNoCam);
+		ipcRenderer.on("arduino:data", newDataYesCam);
+	}
+
+	function EvilUserStopTimedGrabar(e){
+		ipcRenderer.send("arduino:countdown-send-data-done");
+		this.removeEventListener("click", EvilUserStopTimedGrabar);
+	}
+
+	function StopTimedGrabar(e){
+		console.log("stopped");
+		ipcRenderer.removeListener("arduino:data", newDataYesCam);
+		ipcRenderer.on("arduino:data", newDataNoCam);
+
+		writer.end();
+		writer = null;
+
+		let currentdate = new Date();
+		let defaultname =currentdate.getDate()+"-"+(currentdate.getMonth()+1)+"-"+currentdate.getFullYear()+"@"+currentdate.getHours()+"-"+currentdate.getMinutes()+"-"+currentdate.getSeconds();
+		let savepath = dialog.showSaveDialog({defaultPath: defaultname, filters: [{name: "CSV", extensions:["csv"]}]});
+		if(savepath !== undefined){
+			fs.rename(temp_file_dir, savepath, (err) => {
+				if(err) dialog.showErrorBox("Error guardando el archivo", err.message + "\n Puedes encontrar tus datos en: " + temp_file_dir +".");
+			});
+		}
+
+		document.querySelector("#save-data").addEventListener("click", StartGrabar);
+		document.querySelector("#timed-save-data").addEventListener("click", StartTimedGrabar);
+
+		document.querySelector("#timed-save-data").className = "btn btn-default btn-large";
+	}
+
+	function StopGrabar(e){
+		//Function start on save-data antithesis button click
+		// Change ipc functions
+		ipcRenderer.removeListener("arduino:data", newDataYesCam);
+		ipcRenderer.on("arduino:data", newDataNoCam);
+
+		writer.end();
+		writer = null;
+		this.removeEventListener("click", StopGrabar);
+		let currentdate = new Date();
+		let defaultname =currentdate.getDate()+"-"+(currentdate.getMonth()+1)+"-"+currentdate.getFullYear()+"@"+currentdate.getHours()+"-"+currentdate.getMinutes()+"-"+currentdate.getSeconds();
+		let savepath = dialog.showSaveDialog({defaultPath: defaultname, filters: [{name: "CSV", extensions:["csv"]}]});
+		if(savepath !== undefined){
+			fs.rename(temp_file_dir, savepath, (err) => {
+				if(err) dialog.showErrorBox("Error guardando el archivo", err.message + "\n Puedes encontrar tus datos en: " + temp_file_dir +".");
+			});
+		}
+
+		this.addEventListener("click", StartGrabar);
+		this.innerHTML = "Grabar datos";
+		this.className = "btn btn-default btn-large";
+	}
+
+</script>
+</body>
+</html>

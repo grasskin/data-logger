@@ -46,6 +46,8 @@
 
 	let traces = [];
 
+	let lock = false;
+
 	let temp_file_dir; ///////////////////////////// <----------------------------
 
 	var numeric_displays = []; 
@@ -61,147 +63,174 @@
     '#bcbd22',  // curry yellow-green
     '#17becf'];
 
-	window.onresize = function() {
-		// Fix scrolling bug
+	window.addEventListener("resize", function(){
 		plotly.Plots.resize("live-plot");
-	}
+	})
 
 	var new_x, new_y;
 
 	ipcRenderer.on("arduino:data-stream-number", newDataStreamSetup);
 
 	function newDataStreamSetup(e, number_of_streams){
-		plotly.purge("live-plot");
+		if(!lock){
+			numeric_displays = [];
+			number_of_streams = parseInt(number_of_streams)
+			plotly.purge("live-plot");
+			ipcRenderer.removeAllListeners("arduino:data");
 
-		while(document.querySelector("#live-plot").firstChild){
-			document.querySelector("#live-plot").removeChild(document.querySelector("#live-plot").firstChild);
+
+			while(document.querySelector("#live-plot").firstChild){
+				document.querySelector("#live-plot").removeChild(document.querySelector("#live-plot").firstChild);
+			}
+
+			traces = [];
+
+			store.set("numberOfStreams", number_of_streams)
+
+			let trace_config = document.querySelector("#trace-config");
+			let numeric_display = document.querySelector("#live-numerical");
+
+			// Clean the DOM
+			while(trace_config.firstChild){
+				trace_config.removeChild(trace_config.firstChild);
+			}
+
+			while(numeric_display.firstChild){
+				numeric_display.removeChild(numeric_display.firstChild);
+			}
+
+			let main_selector, color_selector, name_selector;
+			let live_number_container, live_number, live_number_label;
+
+			let traceNameSelectorStoreName, traceColorSelectorStoreColor;
+
+			for(let i = 1; i < number_of_streams; i++){
+				traceNameSelectorStoreName = store.get("traceNameSelector" + i +".name")
+				traceColorSelectorStoreColor =  store.get("traceColorSelector"+ i +".color")
+
+				main_selector = document.createElement("li");
+				color_selector = document.createElement("input");
+				name_selector = document.createElement("input");
+
+				live_number_container = document.createElement("div");
+				live_number = document.createElement("h1");
+				live_number_label = document.createElement("h4");
+
+				main_selector.className = "list-group-item form-control";
+				color_selector.className = "pull-left";
+				color_selector.setAttribute("type", "color");
+				name_selector.className = "pull-right";
+				name_selector.setAttribute("type", "text")
+				name_selector.setAttribute("placeholder",  traceNameSelectorStoreName || ("Serie "+ i));
+				store.set("traceNameSelector" + i +".num", i);
+
+				color_selector.setAttribute("name", "traceColorSelector" + i);
+				name_selector.setAttribute("name", "traceNameSelector" + i);
+				if(number_of_streams == 2) color_selector.className += " zero-fix";
+				store.set("traceColorSelector" + i + ".num", i);
+				color_selector.value = traceColorSelectorStoreColor || default_colors[(i-1)%10];
+				live_number.style.color = traceColorSelectorStoreColor || default_colors[(i-1)%10];
+
+				live_number_container.className = "text-center padded btn";
+				live_number.id = "liveNumericDisplay" + i;
+				live_number_label.id = "traceNameSelector" + i;
+				live_number.innerHTML = 0;
+				live_number_label.innerHTML = traceNameSelectorStoreName || ("Serie "+ i);
+
+				main_selector.appendChild(color_selector);
+				main_selector.appendChild(name_selector);
+				trace_config.appendChild(main_selector);
+
+				live_number_container.appendChild(live_number);
+				live_number_container.appendChild(live_number_label);
+				numeric_display.appendChild(live_number_container);
+
+				numeric_displays[i-1] = live_number;
+
+				name_selector.removeEventListener("change", nameSelectorChange);
+				name_selector.addEventListener("change", nameSelectorChange);
+
+				color_selector.removeEventListener("change", colorSelectorChange);
+				color_selector.addEventListener("change", colorSelectorChange);
+
+				traces[i-1] = {x: [], y: [], type: "scatter", name: traceNameSelectorStoreName || "Serie " + i, marker: {color: traceColorSelectorStoreColor || default_colors[(i-1)%10]}};
+
+				// main_selector = color_selector = name_selector = live_number_container = live_number = live_number_label = null;
+			}
+
+			plotly.newPlot('live-plot', traces); // Most important piece of code in this doc !important
+			// Cleanup
+
+			// Various listeners
+
+			document.querySelector("#save-data").removeEventListener("click", StartGrabar);
+			document.querySelector("#save-data").addEventListener("click", StartGrabar);
+			document.querySelector("#timed-save-data").removeEventListener("click", StartTimedGrabar);
+			document.querySelector("#timed-save-data").addEventListener("click", StartTimedGrabar);
+
+			document.querySelector("#delete-data").removeEventListener("click", deleteDataClick);
+			document.querySelector("#delete-data").addEventListener("click", deleteDataClick);
+
+			plotly.Plots.resize("live-plot");
+
+			ipcRenderer.on("arduino:data", newDataNoCam);
+		}
+	}
+
+	 function deleteDataClick(e){
+	 	plotly.purge("live-plot");
+	 	traces = [];
+
+		for(let i = 1; i < store.get("numberOfStreams"); i++){
+			traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}};
 		}
 
 		plotly.newPlot('live-plot', traces);
 
-		// Cleanup
-		ipcRenderer.removeAllListeners("arduino:data");
-
-		store.set("numberOfStreams", number_of_streams)
-
-		let trace_config = document.querySelector("#trace-config");
-		let numeric_display = document.querySelector("#live-numerical");
-
-		// Clean the DOM
-		while(trace_config.firstChild){
-			trace_config.removeChild(trace_config.firstChild);
-		}
-
-		while(numeric_display.firstChild){
-			numeric_display.removeChild(numeric_display.firstChild);
-		}
-
-		let main_selector, color_selector, name_selector;
-		let live_number_container, live_number, live_number_label;
-
-		for(let i = 1; i < number_of_streams; i++){
-			main_selector = document.createElement("li");
-			color_selector = document.createElement("input");
-			name_selector = document.createElement("input");
-
-			live_number_container = document.createElement("div");
-			live_number = document.createElement("h1");
-			live_number_label = document.createElement("h4");
-
-			main_selector.className = "list-group-item form-control";
-			color_selector.className = "pull-left";
-			color_selector.setAttribute("type", "color");
-			name_selector.className = "pull-right";
-			name_selector.setAttribute("type", "text")
-			name_selector.setAttribute("placeholder", store.get("traceNameSelector" + i +".name") || ("Serie "+ i));
-			store.set("traceNameSelector" + i +".num", i);
-
-			color_selector.setAttribute("name", "traceColorSelector" + i);
-			name_selector.setAttribute("name", "traceNameSelector" + i);
-			if(number_of_streams == 2) color_selector.className += " zero-fix";
-			store.set("traceColorSelector" + i + ".num", i);
-			color_selector.value = store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10];
-			live_number.style.color = store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10];
-
-			live_number_container.className = "text-center padded btn";
-			live_number.id = "liveNumericDisplay" + i;
-			live_number_label.id = "traceNameSelector" + i;
-			live_number.innerHTML = 0;
-			live_number_label.innerHTML = store.get("traceNameSelector" + i+".name") || ("Serie "+ i);
-
-			main_selector.appendChild(color_selector);
-			main_selector.appendChild(name_selector);
-			trace_config.appendChild(main_selector);
-
-			live_number_container.appendChild(live_number);
-			live_number_container.appendChild(live_number_label);
-			numeric_display.appendChild(live_number_container);
-
-			numeric_displays[i-1] = live_number;
-
-			name_selector.addEventListener("change", function(e){
-				// Event listener for change of trace name
-				e.preventDefault()
-				store.set(this.name+".name", this.value);
-				document.querySelector("#" + this.name).innerHTML = this.value;
-				plotly.restyle("live-plot", {name: this.value}, [store.get(this.name+".num")-1]);
-			});
-
-			color_selector.addEventListener("change", function(e){
-				// Event listener for change of trace color
-				e.preventDefault();
-
-				store.set(this.name+".color", this.value);
-				document.querySelector("#liveNumericDisplay" + store.get(this.name+".num")).style.color = this.value;
-				plotly.restyle("live-plot", {marker: {color : store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}}, [store.get(this.name+".num")-1]);
-			});
-
-			traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}};
-
-			main_selector = color_selector = name_selector = live_number_container = live_number = live_number_label = null;
-		}
-
-		// Cleanup
-
-		
-
-		document.querySelector("#delete-data").addEventListener("click", function(e){
-			for(let i = 0; i < store.get("numberOfStreams"); i++){
-				traces[i-1] = {x: [], y: [], type: "scatter", name: store.get("traceNameSelector" + i + ".name") || "Serie " +i, marker: {color: store.get("traceColorSelector"+i+".color") || default_colors[(i-1)%10]}};
-			}
-			plotly.update("live-plot", traces);
-		})
-
-		// Various listeners
-
-		document.querySelector("#save-data").addEventListener("click", StartGrabar);
-		document.querySelector("#timed-save-data").addEventListener("click", StartTimedGrabar);
-
-		window.dispatchEvent(new Event('resize'));
-
+		ipcRenderer.removeAllListeners("arduino:data")
 		ipcRenderer.on("arduino:data", newDataNoCam);
+	};
+
+	function nameSelectorChange(e){
+			// Event listener for change of trace name
+			e.preventDefault()
+			
+			store.set(this.name+".name", this.value);
+			document.querySelector("#" + this.name).innerHTML = this.value;
+			plotly.restyle("live-plot", {name: this.value}, [store.get(this.name+".num")-1]);
+		}
+
+	function colorSelectorChange(e){
+		// Event listener for change of trace color
+		e.preventDefault();
+
+		let i = store.get(this.name+".num");
+
+		store.set(this.name+".color", this.value);
+		document.querySelector("#liveNumericDisplay" + i).style.color = this.value;
+		plotly.restyle("live-plot", {marker: {color : this.value || default_colors[(i-1)%10]}}, [i-1]);
 	}
 
 	function newDataNoCam(e, new_data){
+
+		
 		//function for data display no save
 		let stream_numbers = store.get("numberOfStreams");
+		if(new_data !== null && new_data !== undefined){
+			try{
+				if(new_data.length == stream_numbers){
+					new_x = [];
+					new_y = [];
+					for(let i = 1; i<new_data.length; i++){
+						new_x.push([new_data[0]]);
+						new_y.push([new_data[i]]);
+						numeric_displays[i-1].innerHTML = new_data[i]; 
+					}
 
-		if(new_data.length == stream_numbers){
-			new_x = [];
-			for(let i = 1; i<new_data.length; i++){
-				new_x.push([new_data[0]]);
-			}
-			new_y = [];
-			for(let i = 1; i<new_data.length; i++){
-				new_y.push([new_data[i]]);
-			}
-
-			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
-
-			let number_to_update;
-			for(let i = 1; i < stream_numbers; i++){
-				number_to_update = numeric_displays[i-1]
-				number_to_update.innerHTML = new_y[i-1]; 
+					plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+				}
+			} catch (err){
+				console.log(err.message);
 			}
 		}
 	}
@@ -209,27 +238,28 @@
 	function newDataYesCam(e, new_data){
 		//function for data display yes save
 		let stream_numbers = store.get("numberOfStreams");
-		if(new_data.length == stream_numbers){
-			new_x = [];
-			for(let i = 1; i<new_data.length; i++){
-				new_x.push([new_data[0]]);
-			}
-			new_y = [];
-			for(let i = 1; i<new_data.length; i++){
-				new_y.push([new_data[i]]);
-			}
+		if(new_data !== null && new_data !== undefined){
+			try{
+				if(new_data.length == stream_numbers){
+					new_x = [];
+					new_y = [];
+					for(let i = 1; i<new_data.length; i++){
+						new_x.push([new_data[0]]);
+						new_y.push([new_data[i]]);
+						numeric_displays[i-1].innerHTML = new_data[i]; 
+					}
 
-			plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+					lock = true;
 
-			let number_to_update;
-			for(let i = 1; i < stream_numbers; i++){
-				number_to_update = numeric_displays[i-1]
-				number_to_update.innerHTML = new_y[i-1]; 
+					plotly.extendTraces("live-plot", {x: new_x, y: new_y}, Array.from(Array(stream_numbers - 1).keys()), 200);
+
+					// new y reuse
+					new_y.unshift(new_data[0]);
+					writer.write(new_y);
+				}
+			} catch (err){
+				console.log(err.message);
 			}
-
-			// new y reuse
-			new_y.unshift(new_data[0]);
-			writer.write(new_y);
 		}
 	}
 
@@ -299,7 +329,6 @@
 	}
 
 	function StopTimedGrabar(e){
-		console.log("stopped");
 		ipcRenderer.removeListener("arduino:data", newDataYesCam);
 		ipcRenderer.on("arduino:data", newDataNoCam);
 
