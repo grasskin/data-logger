@@ -36,7 +36,7 @@ const commaSplitter = new Transform({
 app.on("ready", function() {
 	let mainWindowState = windowStateKeeper({
 	    defaultWidth: 900,
-	    defaultHeight: 670
+	    defaultHeight: 720
 	  });
 
 	mainWindow = new BrowserWindow({
@@ -91,7 +91,8 @@ function createTimeSelectWindow(){
 	}))
 
 	timeSelectWindow.on("closed", function(){
-		timeSelectWindow = null;
+		if(timeSelectWindow !== null) timeSelectWindow = null;
+		mainWindow.focus();
 	})
 }
 
@@ -117,8 +118,10 @@ function createTimeWindow(){
 	}))
 
 	timeWindow.on("closed", function(){
-		timeWindow = null;
+		//timeWindow = null; // TODO Fix garbage collection, async conflict, tries to load none type
 		mainWindow.webContents.send("arduino:countdown-send-data-done");
+		if(timeWindow !== null) timeWindow = null;
+		mainWindow.focus();
 	})
 }
 
@@ -144,7 +147,8 @@ function createSerialWindow() {
 	}));
 	// Garbage collection
 	serialWindow.on("closed", function(){
-		serialWindow = null;
+		if(serialWindow !== null) serialWindow = null;
+		mainWindow.focus();
 	});
 }
 
@@ -184,14 +188,16 @@ ipcMain.on("config:serial-port", function(e, serialsetup) {
 
 	
 	serialWindow.close();
+
 	} catch (ex){
-		//console.log(ex);
+		console.log(ex);
 	}
 })
 
 function createArduinoSerial(serialsetup){
 	// Create new serial connection
 	arduinoSerialPort = null;
+
 	arduinoSerialPort = new serialport(serialsetup["port"], {baudRate: parseInt(serialsetup["baud-rate"])});
 	mainWindow.webContents.send("arduino:data-stream-number", serialsetup["data-streams"]);
 	try {
@@ -259,7 +265,7 @@ const mainMenuTemplate = [
 			{
 				label: "Restaurar ventana a tamaño predeterminado",
 				click(){
-					mainWindow.setSize(900, 670);
+					mainWindow.setSize(900, 720);
 				}
 			}
 		]

@@ -1,6 +1,6 @@
 {
   "name": "rasskindatalogger",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Un data logger para Arduino.",
   "main": "app.js",
   "scripts": {
